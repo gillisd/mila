@@ -9,4 +9,5 @@
 /vendor
 /.idea
 .ruby-version
+.rake_tasks
 Gemfile.lock
