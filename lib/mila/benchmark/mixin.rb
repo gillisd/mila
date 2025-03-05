@@ -1,79 +1,6 @@
 module Mila
   module Benchmark
     module Mixin
-
-      module JS
-        module Body
-          class Inline
-            def initialize(body = '')
-              @body = body
-            end
-
-            def open(&block)
-              @body = block.call
-            end
-
-            def entrypoint_name
-              raise 'Cannot call entrypoint_name on inline code'
-            end
-
-            def load
-              @body
-            end
-          end
-        end
-      end
-
-      class V8Session
-        def initialize
-          @queue = Queue.new
-          @thread = Thread.new { create_context }
-          @body = nil
-          @has_source = false
-        end
-
-        def context
-          @context ||= @queue.pop
-        end
-
-        def eval_inline(&block)
-          @body = JS::Body::Inline.new
-          @body.open(&block)
-          add_source(@body)
-        end
-
-        def load_bundleable_lib(lib)
-          raise ArgumentError if lib.nil?
-
-          @body = JS::Body::Library.new(lib)
-          add_source(@body)
-        end
-
-        def call(*args)
-          case args
-          in [function_name, args_array]
-            function_name = function_name.to_s
-          in [args_array]
-            function_name = @body.entrypoint_name
-          else
-            raise ArgumentError, 'Invalid arguments'
-          end
-          context.call(function_name, args_array)
-        end
-
-        private
-
-        def add_source(body)
-          raise ArgumentError, 'Cannot add source to a session with a body' if @has_source
-
-          context.eval(body.load)
-        end
-
-        def create_context
-          @queue << MiniRacer::Context.new
-        end
-      end
-
       def benchmark(label = 'benchmark', &block)
         param_count = block.arity
 
@@ -106,17 +33,10 @@ module Mila
         end
 
         print build_header(block)
-        enum.count #eager load the enum
+        enum.count # eager load the enum
         puts benchmark_results
         enum.rewind
         enum
-      end
-
-      def build_header(block)
-        source_location = block.binding.source_location
-        file = source_location[0]
-        line = source_location[1]
-        "Benchmarking #{file}:#{line}"
       end
 
       def simple_benchmark(label, &block)
@@ -126,6 +46,13 @@ module Mila
         end
         puts time
         result
+      end
+
+      def build_header(block)
+        source_location = block.binding.source_location
+        file = source_location[0]
+        line = source_location[1]
+        "Benchmarking #{file}:#{line}"
       end
     end
   end
