@@ -1,0 +1,37 @@
+module Mila
+  module JSON
+    class Scanner::JsStrategy
+      using Refinements::String
+
+      def self.default_source(path = 'lib/mila/json/scanner/js_strategy_impl.js')
+        pathname = path.to_pathname.expand_path
+        raise ArgumentError, "File not found: #{pathname}" unless pathname.exist?
+        pathname.read
+      end
+
+      def initialize(source = self.class.default_source)
+        @context = ExecJS.runtime.compile(source)
+      end
+
+      def scan(json_string, output_format: :string)
+        case output_format
+        when :string
+          extract_strings(json_string)
+        when :object
+          extract_objects(json_string)
+        else
+          raise ArgumentError, "Invalid output format: #{output_format}"
+        end
+      end
+
+      def extract_strings(json_string)
+        results = @context.call('extractJSONStrings', json_string)
+        results.map { |result| Mila::JSON::String.new(result) }
+      end
+
+      def extract_objects(json_string)
+        @context.call('extractJSONObjects', json_string)
+      end
+    end
+  end
+end
