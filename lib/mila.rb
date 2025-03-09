@@ -9,6 +9,9 @@ autoload :Pathname, 'pathname'
 autoload :ExecJS, 'execjs'
 autoload :Singleton, 'singleton'
 autoload :Zlib, 'zlib'
+autoload :JSON, 'json'
+autoload :MultiJson, 'multi_json'
+autoload :Oj, 'oj'
 
 loader = Zeitwerk::Loader.for_gem
 loader.inflector.inflect(

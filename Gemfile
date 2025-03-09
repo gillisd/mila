@@ -14,3 +14,8 @@ group :test do
   gem "minitest", "~> 5.16"
 end
 
+
+
+gem "multi_json", "~> 1.15"
+
+gem "oj", "~> 3.16"
