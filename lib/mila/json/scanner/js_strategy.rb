@@ -13,14 +13,14 @@ module Mila
         @context = ExecJS.runtime.compile(source)
       end
 
-      def scan(json_string, output_format: :string)
-        case output_format
+      def scan(json_string, format: :string)
+        case format
         when :string
           extract_strings(json_string)
         when :object
           extract_objects(json_string)
         else
-          raise ArgumentError, "Invalid output format: #{output_format}"
+          raise ArgumentError, "Invalid output format: #{format}"
         end
       end
 

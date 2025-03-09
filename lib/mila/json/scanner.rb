@@ -5,8 +5,8 @@ module Mila
         @strategy = strategy
       end
 
-      def scan(json_string, output_format: :string)
-        @strategy.scan(json_string, output_format: output_format)
+      def scan(json_string, format: :string)
+        @strategy.scan(json_string, format: format)
       end
     end
   end

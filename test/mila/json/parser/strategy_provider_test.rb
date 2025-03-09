@@ -30,13 +30,6 @@ module Mila
         assert_equal @expected_stringified, parser.parse(test_string)
       end
 
-      def test_js_parser
-        parser = @subject.parser_strategy(:js)
-        result = parser.parse(test_string)
-
-        assert_equal @expected_stringified.transform_keys(&:to_s), result
-      end
-
       def test_format_symbol
         @subject.define_parser :test_regular do |builder|
           builder.symbol_mapping = :symbolize_names
@@ -48,7 +41,6 @@ module Mila
             ::JSON.dump(object)
           end
         end
-
 
         parser = @subject.parser_strategy(:test_regular)
         result = parser.parse(test_string)
@@ -70,6 +62,13 @@ module Mila
         parser = @subject.parser_strategy(:test_string)
         result = parser.parse(test_string, format: :string)
         assert_equal ['key'], result.keys
+      end
+
+      def test_js_parser
+        parser = @subject.parser_strategy(:js)
+        result = parser.parse(test_string)
+
+        assert_equal @expected_stringified.transform_keys(&:to_s), result
       end
 
       def test_js_parser_reuses_context
