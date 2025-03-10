@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
   spec.metadata['changelog_uri'] = spec.homepage
 
   spec.files = Dir[
+    '{exe}/**/*',
     '{lib}/**/*',
     '{multi_json}/**/*'
   ]
