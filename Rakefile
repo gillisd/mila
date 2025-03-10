@@ -63,6 +63,7 @@ namespace :version do
   task :commit => [version_path] do
     sh "git add #{version_path}"
     sh "git commit -m 'Bumped version to #{Mila::VERSION}'"
+    puts "Change to version.rb committed successfully!"
   end
 end
 
