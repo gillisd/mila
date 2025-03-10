@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
-require 'bundler/setup'
+require 'pathname'
 require 'zeitwerk'
 
 autoload :MiniRacer, 'mini_racer'
 autoload :Benchmark, 'benchmark'
-autoload :Pathname, 'pathname'
 autoload :ExecJS, 'execjs'
 autoload :Singleton, 'singleton'
 autoload :Zlib, 'zlib'
