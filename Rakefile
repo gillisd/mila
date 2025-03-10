@@ -46,6 +46,11 @@ namespace :version do
     end
   end
 
+  desc 'Displays the current version'
+  task :current do
+    puts "Current version: #{Mila::VERSION}"
+  end
+
   desc "Undo the last version bump commit"
   task :revert do
     # Check if the last commit was a version bump
