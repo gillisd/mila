@@ -11,6 +11,7 @@ autoload :Singleton, 'singleton'
 autoload :Zlib, 'zlib'
 autoload :JSON, 'json'
 autoload :Oj, 'oj'
+autoload :SimpleDelegator, 'delegate'
 
 class Loader < Zeitwerk::Loader
   def initialize
