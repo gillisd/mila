@@ -4,8 +4,8 @@ module Mila
       using Refinements::String
       using Refinements::Pathname
 
-      def self.default_source(path = Mila.root.join('json/scanner/js_strategy_impl.js'))
-        pathname = path.to_pathname.expand_path
+      def self.default_source(path = Mila.root.join('mila/json/scanner/js_strategy_impl.js'))
+        pathname = path.expand_path
         raise ArgumentError, "File not found: #{pathname}" unless pathname.exist?
         pathname.read
       end
