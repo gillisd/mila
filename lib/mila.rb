@@ -55,6 +55,8 @@ loader.ignore('lib/mila/racer/**/*')
 loader.setup
 
 module Mila
+  extend self
+
   def root
     Pathname(__dir__.to_s)
   end
