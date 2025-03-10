@@ -3,7 +3,7 @@ module Mila
     class Scanner::JsStrategy
       using Refinements::String
 
-      def self.default_source(path = 'lib/mila/json/scanner/js_strategy_impl.js')
+      def self.default_source(path = Mila.root.join('json/scanner/js_strategy_impl.js'))
         pathname = path.to_pathname.expand_path
         raise ArgumentError, "File not found: #{pathname}" unless pathname.exist?
         pathname.read
