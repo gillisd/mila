@@ -84,6 +84,11 @@ module Mila
         result_2 = @subject.parser_strategy(:test).parse(test_string)
         assert_equal :two, result_2
       end
+
+      def test_multijson
+        result = @subject.parser_strategy(:multi_json).parse(test_string)
+        assert_equal @expected_symbolized, result
+      end
     end
   end
 end

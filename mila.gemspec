@@ -40,6 +40,8 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'zeitwerk'
   spec.add_dependency "execjs", "~> 2.10"
   spec.add_dependency "mini_racer", "~> 0.18.0"
+  spec.add_dependency "multi_json", "~> 1.15"
+  spec.add_dependency "oj", "~> 3.16"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

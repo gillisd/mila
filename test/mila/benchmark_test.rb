@@ -13,8 +13,13 @@ module Mila
         json = load_fixture('json_1.json', format: :string)
         tests = lambda do |x|
           mila_json = Mila::JSON::Parser.new(:multi_json)
+          mila_default = Mila::JSON::Parser.new(:default)
           x.report('json') do
             ::JSON.parse(json, symbolize_names: true)
+          end
+
+          x.report 'mila default' do
+            mila_default.parse(json)
           end
 
           x.report('mila simple json') do
