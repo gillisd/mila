@@ -12,18 +12,46 @@ autoload :Zlib, 'zlib'
 autoload :JSON, 'json'
 autoload :Oj, 'oj'
 
-loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
+class Loader < Zeitwerk::Loader
+  def initialize
+    super
+    namespace = Object
+    self.tag = namespace.name + "-" + File.basename(__FILE__, ".rb")
+    self.inflector = Zeitwerk::GemInflector.new(__FILE__)
+    self.push_dir(__dir__, namespace: namespace)
+  end
+
+  def autoload_gem(gem_name, &block)
+    gem_name = gem_name.to_s
+    gem = Gem.loaded_specs
+             .fetch(gem_name, nil)
+    raise LoadError, "gem #{gem_name} not found" unless gem
+
+    push_dir gem.full_gem_path
+
+    block.call(gem) if block_given?
+  end
+end
+
+# @param loader [Loader]
+def load_multi_json(loader)
+  loader.autoload_gem :multi_json do |gem|
+    gem_pathname = Pathname(gem.full_gem_path)
+    adapters_path = gem_pathname.join('multi_json/adapters')
+    loader.collapse('**/multi_json/vendor')
+    loader.do_not_eager_load(adapters_path.join('**/*'))
+    loader.push_dir gem_pathname.join('lib')
+  end
+end
+
+loader = Loader.new
 loader.inflector.inflect(
   'json' => 'JSON',
   'okjson' => 'OkJson'
 )
-multi_json_gem_dir = Gem.loaded_specs['multi_json'].full_gem_path
-gem_lib = Pathname("#{multi_json_gem_dir}/lib")
-
-loader.collapse('**/multi_json/vendor')
-loader.push_dir(gem_lib, namespace: Object)
+load_multi_json(loader)
+loader.log!
 loader.ignore('lib/mila/racer/**/*')
-loader.do_not_eager_load(gem_lib.join('multi_json', 'adapters'))
 loader.setup
 
 module Mila
