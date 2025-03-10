@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require 'mila'
+
+puts Mila::JSON.extract(ARGF.read)
