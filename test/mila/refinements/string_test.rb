@@ -52,6 +52,14 @@ module Mila
         assert_equal path, pathname.to_s
       end
 
+      def test_to_h
+        json_string = '{"key": "value"}'
+        hash = json_string.to_h
+
+        assert_instance_of Hash, hash
+        assert_pattern { hash => { key: 'value' } }
+      end
+
       def test_increment_version
         assert_equal '1.0.1', '1.0.0'.increment_version
         assert_equal '2.4.6', '2.4.5'.increment_version

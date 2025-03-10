@@ -51,7 +51,6 @@ loader.inflector.inflect(
   'okjson' => 'OkJson'
 )
 load_multi_json(loader)
-loader.log!
 loader.ignore('lib/mila/racer/**/*')
 loader.setup
 

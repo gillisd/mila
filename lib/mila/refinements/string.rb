@@ -22,6 +22,10 @@ module Mila
           ::Pathname.new(self)
         end
 
+        def to_h
+          Mila::JSON.parse(self)
+        end
+
         def increment_version
           components = split('.')
           components[-1] = (components[-1].to_i + 1).to_s
