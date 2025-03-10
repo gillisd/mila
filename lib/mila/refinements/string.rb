@@ -21,6 +21,12 @@ module Mila
         def to_pathname
           ::Pathname.new(self)
         end
+
+        def increment_version
+          components = split('.')
+          components[-1] = (components[-1].to_i + 1).to_s
+          components.join('.')
+        end
       end
     end
   end
