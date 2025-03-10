@@ -18,6 +18,8 @@ project_path = lib_path.join('mila')
 namespace :version do
   version_path = project_path.join('version.rb')
   file version_path
+
+  desc "Bump the current version by smallest increment"
   task :bump => [version_path] do
     version_path.open(File::RDWR | File::CREAT, 0644) do |f|
       f.flock(File::LOCK_EX)
@@ -26,15 +28,41 @@ namespace :version do
 
       begin
         next_version = current_version.increment_version
-        source.gsub!(current_version, next_version)
-        f.rewind
-        f.write(source)
+        new_source = source.gsub(current_version, next_version)
+
+        if new_source == source
+          puts "Warning: No version string was replaced in #{version_path}"
+        else
+          f.rewind
+          f.write(new_source)
+          f.truncate(f.pos)
+          puts "Version bumped from #{current_version} to #{next_version}"
+        end
       rescue => e
         f.rewind
         f.write(source)
         raise e
       end
     end
+  end
+
+  desc "Undo the last version bump commit"
+  task :revert do
+    # Check if the last commit was a version bump
+    last_commit_message = `git log -1 --pretty=%B`.strip
+    if last_commit_message.start_with?('Bumped version to ')
+      puts "Reverting last version bump commit..."
+      sh "git revert HEAD --no-edit"
+      puts "Version reverted successfully"
+    else
+      puts "Last commit doesn't appear to be a version bump. Aborting."
+    end
+  end
+
+  desc "Commit the current version change"
+  task :commit => [version_path] do
+    sh "git add #{version_path}"
+    sh "git commit -m 'Bumped version to #{Mila::VERSION}'"
   end
 end
 
