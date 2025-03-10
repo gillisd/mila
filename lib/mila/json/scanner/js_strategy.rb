@@ -2,6 +2,7 @@ module Mila
   module JSON
     class Scanner::JsStrategy
       using Refinements::String
+      using Refinements::Pathname
 
       def self.default_source(path = Mila.root.join('json/scanner/js_strategy_impl.js'))
         pathname = path.to_pathname.expand_path
