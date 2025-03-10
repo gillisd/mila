@@ -55,5 +55,9 @@ loader.ignore('lib/mila/racer/**/*')
 loader.setup
 
 module Mila
+  def root
+    Pathname(__dir__.to_s)
+  end
+
   class Error < StandardError; end
 end
