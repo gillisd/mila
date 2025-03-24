@@ -16,15 +16,15 @@ class Loader < Zeitwerk::Loader
   def initialize
     super
     namespace = Object
-    self.tag = namespace.name + "-" + File.basename(__FILE__, ".rb")
+    self.tag = namespace.name + '-' + File.basename(__FILE__, '.rb')
     self.inflector = Zeitwerk::GemInflector.new(__FILE__)
-    self.push_dir(__dir__, namespace: namespace)
+    push_dir(__dir__, namespace: namespace)
   end
 
   def autoload_gem(gem_name, &block)
     gem_name = gem_name.to_s
     gem = Gem.loaded_specs
-             .fetch(gem_name, nil)
+      .fetch(gem_name, nil)
     raise LoadError, "gem #{gem_name} not found" unless gem
 
     push_dir gem.full_gem_path
@@ -33,6 +33,7 @@ class Loader < Zeitwerk::Loader
   end
 end
 
+# these globs are problematic
 # @param loader [Loader]
 def load_multi_json(loader)
   loader.autoload_gem :multi_json do |gem|
@@ -46,7 +47,7 @@ end
 
 loader = Loader.new
 loader.inflector.inflect(
-  'json' => 'JSON',
+  'json'   => 'JSON',
   'okjson' => 'OkJson'
 )
 load_multi_json(loader)
