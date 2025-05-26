@@ -246,5 +246,57 @@ module Mila
         end
       end
     end
+
+    def test_install_minitest
+      Dir.mktmpdir do |dir|
+        dir = Pathname(dir)
+        with_fixture 'minitest-5.25.4.gem' do |f|
+          f.size
+          package = Gem::Package.new(f.path)
+          enhanced_package = EnhancedPackage.new(package)
+          enhanced_package.add_extra_rdoc_files
+          assert_equal 3, enhanced_package.spec.extra_rdoc_files.count
+
+          installer = Gem::Installer.new(
+            enhanced_package,
+            install_dir: dir.to_path
+          )
+          installer.install
+
+          install_dir = dir.join('gems/minitest-5.25.4')
+          assert_path_exists install_dir
+          assert_path_exists install_dir.join('lib/minitest.rb')
+
+          enhanced_package.downloaded_docs
+                          .each do |file|
+            target_path = install_dir.join(file.relative_path)
+            FileUtils.mkdir_p target_path.dirname
+            FileUtils.ln_s(file.expand_path, target_path)
+          end
+
+          doc_dir = dir.join('doc/minitest-5.25.4')
+          refute_path_exists doc_dir
+
+          keys_to_unset = (ENV.to_h.keys - Bundler.unbundled_env.keys)
+          command = keys_to_unset.inject(StringIO.new) do |io, key|
+            io.write "unset #{key}; "
+            io
+          end
+          command.write "export GEM_HOME=#{dir.to_path}; "
+          command.write "export GEM_PATH=#{dir.to_path}; "
+          command.write "env; "
+          command.write "gem install rdoc --no-document; "
+          command.write "gem rdoc --ri --rdoc minitest"
+          FileUtils.chdir(dir) do
+            system command.string
+            assert_path_exists doc_dir
+
+            assert_equal 271, doc_dir.join('ri').glob('**/*.ri').count
+            assert_equal 50, doc_dir.join('rdoc').glob('**/*.html').count
+            doc_dir
+          end
+        end
+      end
+    end
   end
 end

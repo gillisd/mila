@@ -7,7 +7,7 @@ gemspec
 
 group :development, :test do
   gem "irb"
-  gem "rake", "~> 13.0"
+  # gem "rake", "~> 13.0"
 end
 
 group :test do

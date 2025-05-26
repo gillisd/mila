@@ -1,66 +1,49 @@
 require 'minitest/autorun'
 
-class Integer
-  def retries_allowed
-
-  end
-end
-
 class RetryTest < Minitest::Test
-  @retries = []
+  @retry_specifications = []
+  @pending_retry_specification = nil
 
-  def self.retries
-    @retries
+  def self.retry_specifications
+    @retry_specifications
   end
 
-  def self.retryable(*args)
-    retry_enum = args.first
-    prock = lambda do |test|
-      method_name_match = test.location.match(/^.*?#([^ ]+) \[/)
+  def self.pending_retry_specification
+    @pending_retry_specification
+  end
 
-      return false unless method_name_match
-      test_meth = method_name_match
-                    .captures
-                    .first
-                    .to_sym
-                    .then { instance_method _1 }
-
-      raise "No test location found" if test_meth.nil?
-
-      instance_methods.map { instance_method _1 }
-                      .reject { _1.source_location.nil? }
-                      .find { |method|
-                        test_meth.source_location[1].to_i == method.source_location[1].to_i
-                      }
+  def self.retries(retry_enum)
+    if @pending_retry_specification
+      raise "Cannot define more than one retry specification above a given method"
     end
-    @retries << [prock, retry_enum]
+
+    @pending_retry_specification = RetrySpecification.new(retry_enum)
   end
 
-  def retries_remaining(&block)
-    _prock, enum = self.class
-                       .retries
-                       .find { |retry_proc, _enum| !!retry_proc.call(self) }
-    enum.each(&block)
+  def self.method_added(method)
+    super
+    return unless pending_retry_specification
+    create_retry_specification(method)
+  end
+
+  def self.create_retry_specification(method)
+    pending_retry_specification.finalize(method)
+    pending_retry_specification.validate!
+    @retry_specifications << pending_retry_specification
+    @pending_retry_specification = nil
+  end
+
+  def try_to_retry
+    @retrier ||= Retrier.new(self)
+    @retrier.try_retrying
+  end
+
+  def retry_specification
+    self.class.retry_specifications.find { _1.valid_for_test?(self) }
   end
 
   def after_teardown
-    unless @retrying || passed?
-      retries_remaining do |n|
-        puts "#{self.location} failed. Retrying. Attempt #{n + 1} of #{retries_remaining.count}"
-        __failures = failures.dup
-        __assertions = assertions
-        failures.clear
-        self.assertions = 0
-        @retrying = true
-        run
-        if self.failures.any?
-          next
-        else
-          break
-        end
-      end
-      @retrying = false
-    end
+    try_to_retry unless passed?
   end
 
   @bars = [1, 2]
@@ -69,11 +52,11 @@ class RetryTest < Minitest::Test
     @bars.pop
   end
 
-  retryable 2.times
   def test_bar
     assert true
   end
 
+  retries 1.times
 
   def test_foo
 

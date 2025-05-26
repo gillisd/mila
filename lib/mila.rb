@@ -11,6 +11,17 @@ autoload :Zlib, 'zlib'
 autoload :JSON, 'json'
 autoload :Oj, 'oj'
 autoload :SimpleDelegator, 'delegate'
+autoload :URI, 'uri'
+autoload :Shellwords, 'shellwords'
+
+
+module Gem
+  autoload :Package, 'rubygems/package'
+  autoload :Installer, 'rubygems/installer'
+end
+module RDoc
+  autoload :RubyGemsHook, 'rdoc/rubygems_hook'
+end
 
 class Loader < Zeitwerk::Loader
   def initialize
@@ -24,7 +35,7 @@ class Loader < Zeitwerk::Loader
   def autoload_gem(gem_name, &block)
     gem_name = gem_name.to_s
     gem = Gem.loaded_specs
-      .fetch(gem_name, nil)
+             .fetch(gem_name, nil)
     raise LoadError, "gem #{gem_name} not found" unless gem
 
     push_dir gem.full_gem_path
@@ -47,11 +58,14 @@ end
 
 loader = Loader.new
 loader.inflector.inflect(
-  'json'   => 'JSON',
-  'okjson' => 'OkJson'
+  'json' => 'JSON',
+  'okjson' => 'OkJson',
+  'enhanced_rubygems_hook' => 'EnhancedRubyGemsHook',
+  'rdoc' => 'RDoc'
 )
-load_multi_json(loader)
+#load_multi_json(loader)
 loader.ignore('lib/mila/racer/**/*')
+loader.ignore('lib/minitest/**/*')
 loader.setup
 
 module Mila

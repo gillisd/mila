@@ -1,0 +1,182 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'json'
+require 'fileutils'
+require 'open3'
+require 'base64'
+
+class GitHubFilePuller
+  def initialize
+    @options = {
+      repo: nil,
+      ref: 'HEAD',
+      output_dir: '.',
+      verbose: false
+    }
+  end
+
+  def parse_options
+    OptionParser.new do |opts|
+      opts.banner = "Usage: #{File.basename($0)} [options] REPO GLOB_PATTERN [GLOB_PATTERN...]"
+
+      opts.on("-r", "--ref REF", "Branch, tag, or commit to fetch files from (default: HEAD)") do |ref|
+        @options[:ref] = ref
+      end
+
+      opts.on("-o", "--output-dir DIR", "Directory to save files to (default: current directory)") do |dir|
+        @options[:output_dir] = dir
+      end
+
+      opts.on("-v", "--verbose", "Enable verbose output") do
+        @options[:verbose] = true
+      end
+
+      opts.on("-h", "--help", "Show this help message") do
+        puts opts
+        exit
+      end
+    end.parse!
+
+    if ARGV.empty?
+      puts "Error: Repository name is required"
+      exit 1
+    end
+
+    @options[:repo] = ARGV.shift
+
+    if ARGV.empty?
+      puts "Error: At least one glob pattern is required"
+      exit 1
+    end
+
+    # Handle the case where multiple patterns might be passed as a single string
+    patterns = []
+    ARGV.each do |arg|
+      # If arg looks like it might contain multiple patterns (contains spaces and isn't quoted)
+      if arg.include?(" ") && !(arg.start_with?('"') || arg.start_with?("'"))
+        # Split the arg by spaces and add each part as a separate pattern
+        patterns.concat(arg.split)
+      else
+        patterns << arg
+      end
+    end
+
+    @options[:patterns] = patterns
+    log "Parsed patterns: #{@options[:patterns].inspect}" if @options[:verbose]
+  end
+
+  def validate_gh_cli
+    unless system("gh --version > /dev/null 2>&1")
+      puts "Error: GitHub CLI (gh) is not installed or not in PATH."
+      puts "Please install it from https://cli.github.com/"
+      exit 1
+    end
+
+    unless system("gh auth status > /dev/null 2>&1")
+      puts "Error: Not authenticated with GitHub CLI."
+      puts "Please run 'gh auth login' to authenticate."
+      exit 1
+    end
+  end
+
+  def create_sparse_checkout
+    log "Creating temporary sparse checkout..."
+    timestamp = Time.now.to_i
+    temp_dir = "gh_sparse_checkout_#{timestamp}"
+    repo_url = "https://github.com/#{@options[:repo]}.git"
+
+    commands = [
+      "mkdir -p #{temp_dir}",
+      "cd #{temp_dir} && git init",
+      "cd #{temp_dir} && git remote add origin #{repo_url}",
+      "cd #{temp_dir} && git config core.sparseCheckout true"
+    ]
+
+    commands.each do |cmd|
+      system(cmd) || (log "Failed to execute: #{cmd}", true; return nil)
+    end
+
+    # Write patterns to sparse-checkout file
+    sparse_file = "#{temp_dir}/.git/info/sparse-checkout"
+    File.open(sparse_file, "w") do |f|
+      @options[:patterns].each do |pattern|
+        # Handle quoted patterns and spaces
+        f.puts pattern.gsub(/^['"]|['"]$/, '')
+      end
+    end
+
+    return temp_dir
+  end
+
+  def fetch_files(temp_dir)
+    log "Fetching files that match patterns..."
+
+    commands = [
+      "cd #{temp_dir} && git fetch --depth=1 origin #{@options[:ref]}",
+      "cd #{temp_dir} && git checkout FETCH_HEAD"
+    ]
+
+    commands.each do |cmd|
+      system(cmd) || (log "Failed to execute: #{cmd}", true; return false)
+    end
+
+    # Copy files to output directory
+    log "Copying matched files to output directory..."
+    output_path = File.expand_path(@options[:output_dir])
+    FileUtils.mkdir_p(output_path) unless Dir.exist?(output_path)
+
+    # Find all non-git files in the temp directory
+    files = Dir.glob("#{temp_dir}/**/*").reject do |f|
+      File.directory?(f) || f.include?("#{temp_dir}/.git/")
+    end
+
+    files.each do |file|
+      relative_path = file.sub(/^#{temp_dir}\//, '')
+      target_path = File.join(output_path, relative_path)
+      target_dir = File.dirname(target_path)
+
+      FileUtils.mkdir_p(target_dir) unless Dir.exist?(target_dir)
+      FileUtils.cp(file, target_path)
+      log "Saved: #{relative_path}"
+    end
+
+    return true
+  end
+
+  def cleanup(temp_dir)
+    if temp_dir && Dir.exist?(temp_dir)
+      log "Cleaning up temporary directory..."
+      FileUtils.rm_rf(temp_dir)
+    end
+  end
+
+  def log(message, force = false)
+    puts message if @options[:verbose] || force
+  end
+
+  def run
+    parse_options
+    validate_gh_cli
+
+    log "Repository: #{@options[:repo]}"
+    log "Ref: #{@options[:ref]}"
+    log "Output directory: #{File.expand_path(@options[:output_dir])}"
+    log "Glob patterns: #{@options[:patterns].join(', ')}"
+
+    temp_dir = create_sparse_checkout
+    if temp_dir
+      begin
+        fetch_files(temp_dir)
+      ensure
+        cleanup(temp_dir)
+      end
+    end
+
+    log "Done!", true
+  end
+end
+
+if $0 == __FILE__
+  GitHubFilePuller.new.run
+end
