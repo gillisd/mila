@@ -2,6 +2,7 @@ require 'rake/tasklib'
 require 'delegate'
 require 'shellwords'
 require 'tmpdir'
+require 'rake/clean'
 require_relative 'copy_task'
 
 module Mila
@@ -73,52 +74,52 @@ module Mila
       end
 
       class Proxy < SimpleDelegator
+        extend Forwardable
+
+        def_delegators :@copy_task, :include, :exclude, :include_dotfiles=
+
         def initialize(archive_task:, copy_task:)
           super(archive_task)
           @archive_task = archive_task
           @copy_task = copy_task
         end
-
-        def include_dotfiles=(value)
-          @copy_task.include_dotfiles = value
-        end
-
-        def include(*args)
-          @copy_task.include(*args)
-        end
       end
 
-      def initialize(name = :archive, root_dir: Dir.pwd, destination_path: Dir.pwd, concurrent: true, &block)
+      def initialize(name, root_dir: Dir.pwd, destination_path: Dir.pwd, concurrent: true, &block)
         @name = name
         @root_dir = Pathname.new root_dir
         @destination_path = Pathname.new destination_path
         @concurrent = concurrent
-        @staging_dir_pathname = Pathname.new(Dir.mktmpdir)
+        @copy_task = nil
 
         define_copy_task do |copy_task|
-          block.call Proxy.new(archive_task: self, copy_task: copy_task)
+          proxy = Proxy.new(archive_task: self, copy_task: copy_task)
+          block.call proxy
           validate_attributes!
         end
-
-        ensure_directories_created!
-
+        directory Pathname.new(@destination_path).parent
         define
       end
 
       private
 
-      def ensure_directories_created!
-        parent = Pathname.new(@destination_path).parent
-        mkdir_p parent
+      def tmp_dir
+        raise ArgumentError, 'Archive name is not set' if @name.nil? || @name.empty?
+        @tmp_dir ||= Pathname.new('/tmp').join("rake/archive_task/#{@name}")
+        directory @tmp_dir
+        CLEAN.add @tmp_dir
+        @tmp_dir
       end
 
       def define_copy_task(&block)
         namespace :archive do
-          CopyTask.new :copy_files do |copy_task|
-            block.call copy_task
-            copy_task.root_dir = root_dir
-            copy_task.concurrent = concurrent
-            copy_task.destination_dir = @staging_dir_pathname
+          namespace @name do
+            @copy_task = CopyTask.new :copy_files do |copy_task|
+              block.call copy_task
+              copy_task.root_dir = root_dir
+              copy_task.concurrent = concurrent
+              copy_task.destination_dir = tmp_dir
+            end
           end
         end
       end
@@ -153,16 +154,18 @@ module Mila
         end
       end
 
+      def file_task(*args, &block)
+        file_task_klass.define_task(*args, &block)
+      end
+
       def define
-        namespace :archive do
-          file absolute_target_archive_path => ['archive:copy_files'] do
-            chdir @staging_dir_pathname do
-              sh command.to_s
-            end
+        file_task absolute_target_archive_path => FileList[@copy_task&.target_files] do
+          chdir tmp_dir do
+            sh command.to_s
           end
         end
 
-        desc 'archive task'
+        desc 'archive task ' + @name.to_s
         task @name => absolute_target_archive_path
       end
 
@@ -170,12 +173,22 @@ module Mila
         Pathname.new(Dir.pwd)
       end
 
-      def absolute_target_archive_path
-        target_archive = Pathname.new destination_path
-        case target_archive.relative?
-        in true then workdir_pathname.join(target_archive).expand_path
-        else target_archive.expand_path
+      def file_task_klass
+        case concurrent
+        in true then MultiFileTask
+        in false then ::Rake::FileTask
+        else raise 'Invalid concurrent flag'
         end
+      end
+
+      def absolute_target_archive_path
+        @absolute_target_archive_path ||= (
+          target_archive = Pathname.new destination_path
+          case target_archive.relative?
+          in true then workdir_pathname.join(target_archive).expand_path
+          else target_archive.expand_path
+          end
+        )
       end
     end
   end

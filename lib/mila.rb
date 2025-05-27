@@ -2,6 +2,7 @@
 
 require 'pathname'
 require 'zeitwerk'
+require 'uri'
 
 autoload :MiniRacer, 'mini_racer'
 autoload :Benchmark, 'benchmark'
@@ -11,7 +12,6 @@ autoload :Zlib, 'zlib'
 autoload :JSON, 'json'
 autoload :Oj, 'oj'
 autoload :SimpleDelegator, 'delegate'
-autoload :URI, 'uri'
 autoload :Shellwords, 'shellwords'
 
 module Gem
@@ -30,13 +30,13 @@ module RDoc
 end
 
 class Loader < Zeitwerk::Loader
-  def initialize
-    super
-    namespace = Object
-    self.tag = namespace.name + '-' + File.basename(__FILE__, '.rb')
-    self.inflector = Zeitwerk::GemInflector.new(__FILE__)
-    push_dir(__dir__, namespace: namespace)
-  end
+  # def initialize
+  #   super
+  #   namespace = Object
+  #   self.tag = namespace.name + '-' + File.basename(__FILE__, '.rb')
+  #   self.inflector = Zeitwerk::GemInflector.new(__FILE__)
+  #   push_dir(__dir__, namespace: namespace)
+  # end
 
   def autoload_gem(gem_name, &block)
     gem_name = gem_name.to_s
@@ -62,18 +62,20 @@ def load_multi_json(loader)
   end
 end
 
-loader = Loader.new
+loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
 loader.inflector.inflect(
   'json' => 'JSON',
   'okjson' => 'OkJson',
   'enhanced_rubygems_hook' => 'EnhancedRubyGemsHook',
   'rdoc' => 'RDoc'
 )
-# load_multi_json(loader)
-loader.ignore('lib/mila/racer/**/*')
-loader.ignore('lib/minitest/**/*')
-loader.collapse('lib/mila/concerns')
+
+root = Pathname(__dir__.to_s)
+loader.ignore(root.join('mila/racer/**/*'))
+loader.ignore(root.join('minitest/**/*'))
+loader.collapse(root.join('mila/concerns'))
 loader.setup
+$loader = loader
 
 module Mila
   extend self

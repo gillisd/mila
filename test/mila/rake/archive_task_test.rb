@@ -70,6 +70,9 @@ module Rake
   #   end
   #
   # end
+  def test_does_not_include_staging_files
+
+  end
 
   class TarArchiveTest < Minitest::Test
     include Support::Rake

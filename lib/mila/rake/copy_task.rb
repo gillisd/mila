@@ -5,6 +5,7 @@
 # require_relative 'rake/multi_file_task'
 # require_relative 'lockable'
 
+require 'forwardable'
 module Mila
   module Rake
     class CopyTask < ::Rake::TaskLib
@@ -13,19 +14,19 @@ module Mila
       include Mila::Lockable
       extend Forwardable
 
-      private_reader :__sources
-
       attr_accessor :destination_dir, :root_dir, :concurrent, :prefer_hard_links
       attr_reader :include_dotfiles
 
-      def_delegator :__sources, :include
+      private_reader :__sources
+
+      def_delegator :__sources, :include, :exclude
 
       lock_writers :include, :destination_dir, :root_dir, :prefer_hard_links, :concurrent, :include_dotfiles, on: :lock_writers!
 
       def initialize(name)
         @prefer_hard_links = true
         @include_dotfiles = false
-        @concurrent = false
+        @concurrent = true
         @name = name
         @__sources = new_file_list
         @root_dir = Pathname.new(__dir__)
@@ -97,7 +98,7 @@ module Mila
       end
 
       def resolve_includes
-        chdir @root_dir do
+        chdir @root_dir, verbose: false do
           @includes.flatten.each do |pattern|
             pathname = Pathname.new(pattern)
             case [pathname.exist?, pathname.directory?, pathname.relative?]
@@ -130,33 +131,34 @@ module Mila
         dir_pathname.glob('**/*', File::FNM_DOTMATCH)
       end
 
-      def file(*args, &block)
-        klass = (
-          case concurrent
-          in true then MultiFileTask
-
-          in false then ::Rake::FileTask
-          else raise 'Invalid concurrent flag'
-          end
-        )
-
-        klass.define_task(*args, &block)
+      def file_task_klass
+        case concurrent
+        in true then MultiFileTask
+        in false then ::Rake::FileTask
+        else raise 'Invalid concurrent flag'
+        end
       end
 
-      def copy(source, target)
+      def task_method
+        case concurrent
+        in true then :multitask
+        in false then :task
+        else raise 'Invalid concurrent flag'
+        end
+      end
+
+      def file_task(*args, &block)
+        file_task_klass.define_task(*args, &block)
+      end
+
+      def safe_hard_link(source, target)
         return cp source, target unless @prefer_hard_links
 
-        begin
-          ln source, target
-        rescue Errno::EXDEV, Errno::EPERM
-          cp source, target # Fall back to copy if linking fails
-        end
+        safe_ln source, target
       end
 
       def define!
-        directory destination_dir do
-          mkdir_p destination_dir
-        end
+        directory destination_dir
 
         absolute_sources = source_files
                              .map { |source| Pathname.new(source) }
@@ -166,12 +168,12 @@ module Mila
         absolute_sources.zip(target_files).each do |source, target|
           target_pathname = Pathname.new(target)
           directory target_pathname.parent
-          file target_pathname => [source, destination_dir, target_pathname.parent] do
-            copy source, target_pathname
+          file_task target_pathname => [source, destination_dir, target_pathname.parent] do
+            safe_hard_link source, target_pathname
           end
         end
 
-        task @name.to_sym => new_file_list.include(target_files)
+        send(task_method, @name.to_sym => new_file_list.include(target_files))
       end
     end
   end
