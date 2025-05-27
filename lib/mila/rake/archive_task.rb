@@ -79,6 +79,10 @@ module Mila
           @copy_task = copy_task
         end
 
+        def include_dotfiles=(value)
+          @copy_task.include_dotfiles = value
+        end
+
         def include(*args)
           @copy_task.include(*args)
         end
@@ -114,7 +118,6 @@ module Mila
             block.call copy_task
             copy_task.root_dir = root_dir
             copy_task.concurrent = concurrent
-            copy_task.include_dotfiles = true
             copy_task.destination_dir = @staging_dir_pathname
           end
         end

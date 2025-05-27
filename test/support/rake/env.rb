@@ -106,7 +106,6 @@ module Support
         @app = nil
         @files.each { |file| safe_unlink file }
         @directories.each { |dir| rm_rf dir }
-        # chdir @current_dir
         self.class.release
       end
 
@@ -114,7 +113,7 @@ module Support
 
       def save_rakefile
         touch_file 'Rakefile'
-        @files.add 'Rakefile'
+        @files.add path_for('Rakefile')
       end
     end
   end
