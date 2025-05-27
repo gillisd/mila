@@ -36,10 +36,6 @@ module Mila
           @destination = Pathname.new(destination)
         end
 
-        def find_command_arr
-          # ['find', '.', '-type', 'f']
-        end
-
         def tar_command_arr
           ['tar'].tap do |arr|
             arr << '-cvf'
@@ -48,13 +44,10 @@ module Mila
               arr << '-z'
             end
             arr << '.'
-            # arr << '-T'
-            # arr << '-'
           end
         end
 
         def to_s
-          # Shellwords.join(find_command_arr) + ' | ' + Shellwords.join(tar_command_arr)
           Shellwords.join(tar_command_arr)
         end
       end
