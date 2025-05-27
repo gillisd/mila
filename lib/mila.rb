@@ -14,11 +14,17 @@ autoload :SimpleDelegator, 'delegate'
 autoload :URI, 'uri'
 autoload :Shellwords, 'shellwords'
 
-
 module Gem
   autoload :Package, 'rubygems/package'
   autoload :Installer, 'rubygems/installer'
 end
+
+module Rake
+  autoload :TaskLib, 'rake/tasklib'
+  autoload :FileList, 'rake/file_list'
+  autoload :MultiTask, 'rake/multi_task'
+end
+
 module RDoc
   autoload :RubyGemsHook, 'rdoc/rubygems_hook'
 end
@@ -63,9 +69,10 @@ loader.inflector.inflect(
   'enhanced_rubygems_hook' => 'EnhancedRubyGemsHook',
   'rdoc' => 'RDoc'
 )
-#load_multi_json(loader)
+# load_multi_json(loader)
 loader.ignore('lib/mila/racer/**/*')
 loader.ignore('lib/minitest/**/*')
+loader.collapse('lib/mila/concerns')
 loader.setup
 
 module Mila
