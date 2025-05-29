@@ -8,7 +8,7 @@ require_relative 'copy_task'
 module Mila
   module Rake
     class ArchiveTask < ::Rake::TaskLib
-      attr_accessor :name, :destination_path, :root_dir, :concurrent, :include
+      attr_accessor :name, :destination_path, :root_dir, :concurrent, :include, :description
 
       class AppleArchiveCommand
         def initialize(destination: Dir.pwd)
@@ -16,7 +16,7 @@ module Mila
         end
 
         def command_arr
-          ["aa", "archive"].tap do |c|
+          %w[aa archive].tap do |c|
             c << '-v' # verbose
             c << '-d' # directory
             c << '.' # current location
@@ -78,10 +78,11 @@ module Mila
         end
       end
 
-      def initialize(name, root_dir: Dir.pwd, destination_path: Dir.pwd, concurrent: true, &block)
+      def initialize(name, root_dir: Dir.pwd, destination_path: Dir.pwd, concurrent: true, include_dotfiles: true, &block)
         @name = name
         @root_dir = Pathname.new root_dir
         @destination_path = Pathname.new destination_path
+        @include_dotfiles = include_dotfiles
         @concurrent = concurrent
         @copy_task = nil
 
@@ -97,10 +98,11 @@ module Mila
       private
 
       def tmp_dir
+        return @tmp_dir if @tmp_dir&.present?
         raise ArgumentError, 'Archive name is not set' if @name.nil? || @name.empty?
         @tmp_dir ||= Pathname.new('/tmp').join("rake/archive_task/#{@name}")
         directory @tmp_dir
-        CLEAN.add @tmp_dir
+       # CLEAN.add @tmp_dir
         @tmp_dir
       end
 
@@ -109,6 +111,9 @@ module Mila
           namespace @name do
             @copy_task = CopyTask.new :copy_files do |copy_task|
               block.call copy_task
+              copy_task.exclude absolute_target_archive_path
+              copy_task.exclude @destination_path
+              copy_task.include_dotfiles = true
               copy_task.root_dir = root_dir
               copy_task.concurrent = concurrent
               copy_task.destination_dir = tmp_dir
@@ -152,13 +157,20 @@ module Mila
       end
 
       def define
-        file_task absolute_target_archive_path => FileList[@copy_task&.target_files] do
+        directory absolute_target_archive_path.dirname
+
+        copy_targets = FileList.new do |l|
+          l.include @copy_task&.target_files
+          l.include absolute_target_archive_path.dirname
+        end
+
+        file_task absolute_target_archive_path => copy_targets do
           chdir tmp_dir do
             sh command.to_s
           end
         end
 
-        desc 'archive task ' + @name.to_s
+        desc description
         task @name => absolute_target_archive_path
       end
 
