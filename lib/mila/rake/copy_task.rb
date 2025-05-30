@@ -1,4 +1,5 @@
 require 'forwardable'
+require 'stringio'
 require 'rake/clean'
 # require_relative '../concerns/lockable'
 # require_relative '../multi_file_task'
@@ -26,27 +27,31 @@ end
 module Mila
   module Rake
     class CopyTask < ::Rake::TaskLib
+      include FileUtils
       include ::Rake::PrivateReader
       include ::Rake::DSL
       include Mila::Lockable
       extend Forwardable
 
-      attr_accessor :destination_dir, :root_dir, :concurrent, :prefer_hard_links, :description
+      attr_accessor :destination_dir, :root_dir, :concurrent, :prefer_hard_links, :description, :force_hard_links
       attr_reader :include_dotfiles
 
       private_reader :__sources
 
       def_delegator :__sources, :include, :exclude
 
-      lock_writers :include, :description, :destination_dir, :root_dir, :prefer_hard_links, :concurrent, :include_dotfiles, on: :lock_writers!
+      lock_writers :include, :description, :destination_dir, :root_dir, :prefer_hard_links, :concurrent, :include_dotfiles, :force_hard_links, :before_copy, on: :lock_writers!
 
       def initialize(name)
+        @fileutils_output = $stderr
         @prefer_hard_links = true
+        @force_hard_links = false
         @include_dotfiles = false
         @concurrent = true
         @name = name
         @root_dir = Pathname.new(__dir__)
         @includes = []
+        @before_copy_hooks = []
         @excludes = []
         yield self
 
@@ -54,35 +59,35 @@ module Mila
           raise ArgumentError, "Required argument #{req} was not present" if public_send(req).nil?
         end
 
+        lock_writers!
         compile_source_list
         define!
-        lock_writers!
       end
 
       def compile_source_list
-        @__sources = new_file_list
-        resolve_excludes
+        @__sources ||= new_file_list
+        # resolve_excludes
         resolve_includes
       end
 
       def source_files
         @source_files ||= __sources
-          .resolve
-          .map { |source| Pathname.new(source) }
-          .map { |source| source.relative? ? root_dir_path.join(source) : source }
-          .reject(&:directory?) # must be here to reject as we now have absolute paths
-          .map { |source| relative_path_from_root source }
-          .then { |it| new_file_list.include(it) }
+                            .resolve
+                            .map { |source| Pathname.new(source) }
+                            .map { |source| source.relative? ? root_dir_path.join(source) : source }
+                            .reject(&:directory?) # must be here to reject as we now have absolute paths
+                            .map { |source| relative_path_from_root source }
+                            .then { |it| new_file_list.include(it) }
       end
 
       def target_files
         @target_files ||= destination_dir
-          .then { |it| Pathname.new it }
-          .then { |destination_dir_path|
-          source_files
-            .map { |source| destination_dir_path.join(source) }
-            .then { |it| new_file_list.include(it) }
-        }
+                            .then { |it| Pathname.new it }
+                            .then { |destination_dir_path|
+                              source_files
+                                .map { |source| destination_dir_path.join(source) }
+                                .then { |it| new_file_list.include(it) }
+                            }
       end
 
       def root_dir_path
@@ -104,6 +109,10 @@ module Mila
         @includes << args
       end
 
+      def before_copy(&block)
+        @before_copy_hooks << block if block_given?
+      end
+
       def exclude(*args, &block)
         @excludes << [args, block].flatten
       end
@@ -115,7 +124,7 @@ module Mila
           list.exclude '**/.DS_Store'
         }
 
-        if @include_dotfiles
+        if include_dotfiles
           LiberalFileList.new.tap(&default_prock)
         else
           ::Rake::FileList.new.tap do |list|
@@ -126,34 +135,57 @@ module Mila
       end
 
       def resolve_includes
-        resolved = resolve_file_list(@includes)
-        __sources.include resolved
+        resolve_excludes
+        resolve_file_list(@includes, verb: :include, file_list: __sources)
       end
 
       def resolve_excludes
         compacted = @excludes.flatten.compact
-        procs = compacted.select { _1 in Proc }
+        procs = compacted.select { Proc === _1 }
         rest = compacted - procs
-        resolved = resolve_file_list(rest)
-        __sources.exclude resolved
+        resolve_file_list(rest, verb: :exclude, file_list: __sources)
         procs.each { |proc| __sources.exclude(&proc) }
         __sources
       end
 
-      def resolve_file_list(list)
-        new_file_list.tap do |__sources|
-          chdir @root_dir, verbose: false do
-            list.flatten.each do |pattern|
-              pathname = Pathname.new(pattern)
-              case [pathname.exist?, pathname.directory?, pathname.relative?]
-              in true, true, true
-                absolute_pathname = Pathname.new(@root_dir).join(pathname)
-                __sources.include absolute_pathname.join('**/*')
-              in true, true, false
-                __sources.include pathname.join('**/*')
-              else
-                __sources.include(pattern)
+      def resolve_file_list(list, verb:, file_list:)
+        chdir @root_dir, verbose: false do
+          list.flatten.each do |pattern|
+            pathname = Pathname.new(pattern)
+            is_glob = pattern.to_s.include?('*')
+            root_dir_pathname = Pathname.new(@root_dir).expand_path
+            case [pathname.exist?, pathname.directory?, pathname.relative?, is_glob]
+            in true, true, true, false # a relative directory
+              absolute_pathname = root_dir_pathname.join(pathname)
+              file_list.send verb, absolute_pathname.join('**/*').to_s
+            in true, true, false, false # an absolute directory
+              file_list.send verb, pathname.join('**/*').to_s
+            in _, _, _, true # a glob pattern
+              nearest_dir_without_glob = pathname
+                                           .ascend
+                                           .find {
+                                             |path| path.directory? && path.exist?
+                                           }
+
+              absolute_glob = nil
+              if nearest_dir_without_glob.nil?
+                nearest_dir_without_glob = root_dir_pathname
+                absolute_glob = nearest_dir_without_glob.join(pathname)
               end
+
+              if nearest_dir_without_glob.relative?
+                absolute_glob = root_dir_pathname.join(pathname)
+                file_list.send verb, absolute_glob.to_s
+              else
+                file_list.send verb, absolute_glob.to_s
+              end
+            in _, _, true, false # a file or a relative file
+              absolute_pathname = root_dir_pathname.join(pathname)
+              file_list.send verb, absolute_pathname.to_s
+            in _, _, false, false # an absolute file
+              file_list.send verb, pathname.to_s
+            else
+              raise ArgumentError, "Invalid pattern: #{pattern.inspect}"
             end
           end
         end
@@ -191,24 +223,37 @@ module Mila
       end
 
       def file_task(...)
-        file_task_klass.define_task(...)
+        file(...)
+        # file_task_klass.define_task(...)
       end
 
       def safe_hard_link(source, target)
-        unless @prefer_hard_links
+        case [prefer_hard_links, force_hard_links]
+        in true, true
+          # warn 'Using hard links'
+          begin
+            ln source, target, force: true
+          rescue => e
+            warn 'Failed to create hard link, falling back to regular copy'
+          end
+        in true, false
+          warn 'Using hard links, but will fall back to regular copy if hard link fails'
+
+          begin
+            safe_ln source, target
+          rescue ArgumentError => e
+            if e.message =~ /same file/
+              warn 'File already exists'
+              return
+            end
+
+            raise e
+          end
+        in false, _
           warn 'Using regular copy'
           return cp source, target
-        end
-
-        begin
-          safe_ln source, target
-        rescue ArgumentError => e
-          if e.message =~ /same file/
-            warn 'File already exists'
-            return
-          end
-
-          raise e
+        else
+          raise 'Invalid combination of prefer_hard_links and force_hard_links'
         end
       end
 
@@ -216,25 +261,37 @@ module Mila
         directory destination_dir
 
         absolute_sources = source_files
-          .map { |source| Pathname.new(source) }
-          .map { |source| root_dir_path.join(source) }
-          .reject(&:directory?) # must be here to reject as we now have absolute paths
+                             .map { |source| Pathname.new(source) }
+                             .map { |source| root_dir_path.join(source) }
+                             .reject(&:directory?) # must be here to reject as we now have absolute paths
 
-        absolute_sources.zip(target_files).each do |source, target|
-          target_pathname = Pathname.new(target)
-          directory target_pathname.parent
+        finalized_targets = LiberalFileList.new.tap do |finalized_targets|
+          absolute_sources.zip(target_files).each do |source, target|
+            editable_target = EditableFile.new(target, content_path: source)
+            @before_copy_hooks.each { |hook| hook.call editable_target }
 
-          CLEAN.include target_pathname
+            target_pathname = editable_target
+            directory target_pathname.parent
 
-          file_task target_pathname => [source, destination_dir, target_pathname.parent] do
-            safe_hard_link source, target_pathname
+            CLEAN.include target_pathname
+
+            file_task target_pathname => [source, destination_dir, target_pathname.parent] do
+              if editable_target.dirty?
+                editable_target.save
+              else
+                safe_hard_link source, target_pathname
+              end
+            end
+
+            finalized_targets.include target_pathname
           end
         end
 
+        finalized_targets.resolve
+
         desc description if description
-        send(task_method, @name.to_sym => new_file_list.include(target_files))
+        send(task_method, @name.to_sym => finalized_targets)
       end
     end
   end
 end
-

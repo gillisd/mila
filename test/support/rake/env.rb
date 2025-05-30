@@ -25,8 +25,7 @@ module Support
         @mutex.unlock
       end
 
-      def initialize(caller_binding, workdir: Dir.mktmpdir(SecureRandom.alphanumeric(10)))
-        @caller_binding = caller_binding
+      def initialize(workdir: Dir.mktmpdir(SecureRandom.alphanumeric(10)))
         @workdir = Pathname.new(workdir)
         @app = Application.new
         @files = FileList.new

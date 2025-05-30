@@ -3,6 +3,7 @@ require 'delegate'
 require 'shellwords'
 require 'tmpdir'
 require 'rake/clean'
+require 'digest'
 require_relative 'copy_task'
 
 module Mila
@@ -69,7 +70,7 @@ module Mila
       class Proxy < SimpleDelegator
         extend Forwardable
 
-        def_delegators :@copy_task, :include, :exclude, :include_dotfiles=
+        def_delegators :@copy_task, :include, :exclude, :include_dotfiles=, :before_copy, :force_hard_links=
 
         def initialize(archive_task:, copy_task:)
           super(archive_task)
@@ -97,12 +98,23 @@ module Mila
 
       private
 
+      def project_id
+        dir = begin
+                Bundler.root.to_s
+              rescue Bundler::GemfileNotFound => e
+                warn "no gemfile, using workdir: #{Dir.pwd}"
+                Dir.pwd
+              end
+
+        Digest::MD5.hexdigest dir
+      end
+
       def tmp_dir
-        return @tmp_dir if @tmp_dir&.present?
+        return @tmp_dir if @tmp_dir
         raise ArgumentError, 'Archive name is not set' if @name.nil? || @name.empty?
-        @tmp_dir ||= Pathname.new('/tmp').join("rake/archive_task/#{@name}")
+        @tmp_dir ||= Pathname.new('/tmp').join("rake/archive_task/#{project_id}/#{@name}")
         directory @tmp_dir
-       # CLEAN.add @tmp_dir
+        CLEAN.add @tmp_dir
         @tmp_dir
       end
 
@@ -110,6 +122,7 @@ module Mila
         namespace :archive do
           namespace @name do
             @copy_task = CopyTask.new :copy_files do |copy_task|
+              copy_task.exclude tmp_dir
               block.call copy_task
               copy_task.exclude absolute_target_archive_path
               copy_task.exclude @destination_path
@@ -131,7 +144,7 @@ module Mila
       end
 
       def archive_extension
-        @destination_path.extname
+        Pathname.new(@destination_path).extname
       end
 
       def command

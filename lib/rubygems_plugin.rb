@@ -3,7 +3,7 @@ Gem.pre_install do
   Gem.done_installing_hooks.delete_if { _1.to_s.match /lib\/rdoc/ }
 
   Gem.post_install do |*args, **kwargs|
-    binding.irb
+#    binding.irb
     gem_name = args.first.spec.name
     marshalled = Marshal.dump args.first rescue nil
     unless marshalled.nil?
