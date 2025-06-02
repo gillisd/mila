@@ -8,13 +8,15 @@ module Rake
   class CopyTaskTest < Minitest::Test
     attr_reader :env
 
+    # parallelize_me!
+
     include Support::Assertions
 
     CopyTask = Mila::Rake::CopyTask
     Lockable = Mila::Lockable
 
     def setup
-      @env = Support::Rake::Env.new(binding)
+      @env = Support::Rake::Env.new
       @env.mkdir_p 'src'
       @env.mkdir_p 'dest'
       @env.start
@@ -23,6 +25,7 @@ module Rake
     def teardown
       env.stop
     end
+
 
     def test_simple_task
       mock = Minitest::Mock.new

@@ -1,47 +1,41 @@
 # require 'rake'
+
+module ::Rake
+
+  def application
+    Thread.current[:__rake_app] ||= Rake::Application.new
+  end
+end
+
 require 'rake'
 require 'rake/application'
-# require 'pathname'
-# require 'forwardable'
-# require 'rake/application'
-# require 'securerandom'
+require 'securerandom'
+require 'pathname'
+require 'forwardable'
+
 module Support
   module Rake
     class Env
       include FileUtils
       extend Forwardable
 
-      include ::Rake
-
       attr_reader :app, :workdir
-
-      @mutex = Mutex.new
-
-      def self.acquire
-        @mutex.lock
-      end
-
-      def self.release
-        @mutex.unlock
-      end
 
       def initialize(workdir: Dir.mktmpdir(SecureRandom.alphanumeric(10)))
         @workdir = Pathname.new(workdir)
-        @app = Application.new
         @files = FileList.new
         @directories = FileList[@workdir]
         @current_dir = __dir__
       end
 
-      def start
-        self.class.acquire
-        ::Rake.application = app
+      def app
+        ::Rake.application
+      end
 
-        # chdir workdir
+      def start
+        chdir workdir
         save_rakefile
-        chdir @workdir do
-          app.load_rakefile
-        end
+        app.load_rakefile
       end
 
       def touch_file(filename, content = "# Created by Support::Env at #{Time.now}\n")
@@ -88,30 +82,30 @@ module Support
       end
 
       def define_task(name, &block)
-        Task.define_task(name, &block)
+        ::Rake::Task.define_task(name, &block)
       end
 
       def invoke_task(name)
-        Task[name].invoke
+        ::Rake::Task[name].invoke
       end
 
       def task_exists?(name)
-        Task.task_defined?(name)
+        ::Rake::Task.task_defined?(name)
       end
 
       def stop
-        return unless app
+        # return unless app
         ::Rake.application = nil
-        @app = nil
+        # @app = nil
         @files.each { |file| safe_unlink file }
         @directories.each { |dir| rm_rf dir }
-        self.class.release
+        # self.class.release
       end
 
       private
 
       def save_rakefile
-        touch_file 'Rakefile'
+        touch_file 'Rakefile', 'require "pathname"'
         @files.add path_for('Rakefile')
       end
     end
