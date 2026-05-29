@@ -1,7 +1,6 @@
 # require 'rake'
 
 module ::Rake
-
   def application
     Thread.current[:__rake_app] ||= Rake::Application.new
   end

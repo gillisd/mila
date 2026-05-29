@@ -1,31 +1,16 @@
-# require 'minitest/autorun'
-# require_relative '../copy_task'
-# require_relative 'support/assertions'
-# require_relative 'support/env'
-require 'test_helper'
+require_relative '../test_helper'
 
-module Rake
+module ModernRake
   class CopyTaskTest < Minitest::Test
-    attr_reader :env
+    include Support::EnvHelper
+    include Support::ListAssertions
 
-    # parallelize_me!
-
-    include Support::Assertions
-
-    CopyTask = Mila::Rake::CopyTask
-    Lockable = Mila::Lockable
+    CopyTask = ModernRake::NewCopyTask
 
     def setup
-      @env = Support::Rake::Env.new
-      @env.mkdir_p 'src'
-      @env.mkdir_p 'dest'
-      @env.start
+      mkdir_p 'src'
+      mkdir_p 'dest'
     end
-
-    def teardown
-      env.stop
-    end
-
 
     def test_simple_task
       mock = Minitest::Mock.new
@@ -40,39 +25,95 @@ module Rake
     end
 
     def test_environment_cleans_up
-      env.touch_file 'foo'
-      assert_path_exists env.path_for 'foo'
+      touch 'foo'
+      assert_path_exists 'foo'
       env.stop
-      refute_path_exists env.path_for 'foo'
+      refute_path_exists 'foo'
     end
 
-    def test_basic_file_copying
+    def test_environment_can_write
+      write 'test_file.txt', 'Hello, World!'
+      assert_path_exists 'test_file.txt'
+      assert_file_contains 'test_file.txt', 'Hello, World!'
+    end
+
+    def test_task_sources
       # Setup source files
-      env.touch_file('src/file1.txt', 'Content of file 1')
-      env.touch_file('src/file2.rb', 'puts "Hello World"')
+      write 'src/file1.txt', 'Content of file 1'
+      write 'src/file2.rb', 'puts "Hello World"'
+
+      assert_file_contains 'src/file1.txt', 'Content of file 1'
+      assert_file_contains 'src/file2.rb', 'puts "Hello World"'
 
       # Create copy task
-      CopyTask.new(:copy_files) do |t|
+      task = CopyTask.new :copy_files do |t|
         t.root_dir = env.workdir
         t.destination_dir = env.path_for('dest')
         t.include 'src/**/*'
       end
 
+      assert_list_contains task.sources, 'src/file1.txt'
+    end
+
+    def test_basic_file_copying
+      # Setup source files
+      write 'src/file1.txt', 'Content of file 1'
+      write 'src/file2.rb', 'puts "Hello World"'
+
+      assert_file_contains 'src/file1.txt', 'Content of file 1'
+      assert_file_contains 'src/file2.rb', 'puts "Hello World"'
+
+      # Create copy task
+      t = CopyTask.new :copy_files do |t|
+        t.root_dir = env.workdir
+        t.destination_dir = path_for('dest')
+        t.include 'src/**/*'
+      end
+
       # Execute the task
-      env.invoke_task(:copy_files)
+      invoke_task :copy_files
 
       # Verify files were copied
-      assert_path_exists env.path_for('dest/src/file1.txt')
-      assert_path_exists env.path_for('dest/src/file2.rb')
-      assert_file_contains env.path_for('dest/src/file1.txt'), 'Content of file 1'
-      assert_file_contains env.path_for('dest/src/file2.rb'), 'puts "Hello World"'
+      assert_path_exists 'dest/src/file1.txt'
+      assert_path_exists 'dest/src/file2.rb'
+      assert_file_contains 'dest/src/file1.txt', 'Content of file 1'
+      assert_file_contains 'dest/src/file2.rb', 'puts "Hello World"'
+    end
+
+    def test_basic_file_copying_dest_no_exist
+      # Setup source files
+
+      write 'src/file1.txt', 'Content of file 1'
+      write 'src/file2.rb', 'puts "Hello World"'
+
+      env.rmdir path_for('dest')
+      refute_path_exists path_for('dest')
+
+      assert_file_contains 'src/file1.txt', 'Content of file 1'
+      assert_file_contains 'src/file2.rb', 'puts "Hello World"'
+
+      # Create copy task
+      t = CopyTask.new :copy_files do |t|
+        t.root_dir = env.workdir.join('src')
+        t.destination_dir = path_for('dest')
+        t.include '**/*'
+      end
+
+      # Execute the task
+      invoke_task :copy_files
+
+      # Verify files were copied
+      assert_path_exists 'dest/file1.txt'
+      assert_path_exists 'dest/file2.rb'
+      assert_file_contains 'dest/file1.txt', 'Content of file 1'
+      assert_file_contains 'dest/file2.rb', 'puts "Hello World"'
     end
 
     def test_directory_structure_preservation
       # Create nested directory structure
-      env.touch_file('project/lib/main.rb', 'class Main; end')
-      env.touch_file('project/lib/utils/helper.rb', 'module Helper; end')
-      env.touch_file('project/test/test_main.rb', 'require "minitest"')
+      write 'project/lib/main.rb', 'class Main; end'
+      write 'project/lib/utils/helper.rb', 'module Helper; end'
+      write 'project/test/test_main.rb', 'require "minitest"'
 
       CopyTask.new(:copy_project) do |t|
         t.root_dir = env.workdir
@@ -80,7 +121,7 @@ module Rake
         t.include 'project/**/*'
       end
 
-      env.invoke_task(:copy_project)
+      invoke_task(:copy_project)
 
       # Verify directory structure is preserved
       assert_path_exists env.path_for('backup/project/lib/main.rb')
@@ -90,11 +131,11 @@ module Rake
 
     def test_multiple_include_patterns
       # Create files matching different patterns
-      env.touch_file('docs/readme.md', '# README')
-      env.touch_file('docs/guide.txt', 'User guide')
-      env.touch_file('src/main.rb', 'puts "main"')
-      env.touch_file('src/helper.rb', 'puts "helper"')
-      env.touch_file('build/output.log', 'build log') # Should not be included
+      write('docs/readme.md', '# README')
+      write('docs/guide.txt', 'User guide')
+      write('src/main.rb', 'puts "main"')
+      write('src/helper.rb', 'puts "helper"')
+      write('build/output.log', 'build log') # Should not be included
 
       CopyTask.new(:selective_copy) do |t|
         t.root_dir = env.workdir
@@ -117,7 +158,7 @@ module Rake
       # Create directory outside of root_dir
       external_dir = env.path_for('external')
       external_dir.mkpath
-      env.touch_file('external/config.yml', 'database: test')
+      write('external/config.yml', 'database: test')
 
       CopyTask.new(:copy_external) do |t|
         t.root_dir = env.path_for('src')
@@ -132,9 +173,9 @@ module Rake
 
     def test_dotfiles_are_excluded_by_default
       # Create various dotfiles and hidden directories
-      env.touch_file('src/.hidden_file', 'secret')
-      env.touch_file('src/.env', 'API_KEY=secret')
-      env.touch_file('src/normal_file.txt', 'normal content')
+      write('src/.hidden_file', 'secret')
+      write('src/.env', 'API_KEY=secret')
+      write('src/normal_file.txt', 'normal content')
 
       CopyTask.new(:copy_no_dotfiles) do |t|
         t.root_dir = env.workdir
@@ -152,9 +193,9 @@ module Rake
 
     def test_dotfiles_can_be_included
       # Create various dotfiles and hidden directories
-      env.touch_file('src/.hidden_file', 'secret')
-      env.touch_file('src/.env', 'API_KEY=secret')
-      env.touch_file('src/normal_file.txt', 'normal content')
+      write('src/.hidden_file', 'secret')
+      write('src/.env', 'API_KEY=secret')
+      write('src/normal_file.txt', 'normal content')
 
       CopyTask.new(:copy_include_dotfiles) do |t|
         t.root_dir = env.workdir
@@ -172,9 +213,9 @@ module Rake
 
     def test_ds_store_files_are_excluded
       # Create .DS_Store files (common on macOS)
-      env.touch_file('src/.DS_Store', 'binary data')
-      env.touch_file('src/subdir/.DS_Store', 'more binary data')
-      env.touch_file('src/important.txt', 'keep this')
+      write('src/.DS_Store', 'binary data')
+      write('src/subdir/.DS_Store', 'more binary data')
+      write('src/important.txt', 'keep this')
 
       CopyTask.new(:copy_clean) do |t|
         t.root_dir = env.workdir
@@ -206,7 +247,7 @@ module Rake
     end
 
     def test_task_dependencies_are_created
-      env.touch_file('src/file.txt', 'content')
+      write('src/file.txt', 'content')
 
       CopyTask.new(:copy_with_deps) do |t|
         t.root_dir = env.workdir
@@ -227,7 +268,7 @@ module Rake
 
     def test_hard_link_preference_fallback
       # This is harder to test directly, but we can verify the behavior
-      env.touch_file('src/large_file.txt', 'x' * 1000)
+      write('src/large_file.txt', 'x' * 1000)
 
       CopyTask.new(:copy_with_links) do |t|
         t.root_dir = env.workdir
@@ -245,7 +286,7 @@ module Rake
     end
 
     def test_copy_without_hard_links
-      env.touch_file('src/file.txt', 'test content')
+      write('src/file.txt', 'test content')
 
       CopyTask.new(:copy_no_links) do |t|
         t.root_dir = env.workdir
@@ -282,8 +323,8 @@ module Rake
     end
 
     def test_source_and_target_files_lazy_evaluation
-      env.touch_file('src/file1.txt', 'content1')
-      env.touch_file('src/file2.txt', 'content2')
+      write('src/file1.txt', 'content1')
+      write('src/file2.txt', 'content2')
 
       copy_task = CopyTask.new(:lazy_eval) do |t|
         t.root_dir = env.workdir
@@ -322,7 +363,7 @@ module Rake
     end
 
     def test_concurrent_flag_affects_task_type
-      env.touch_file('src/file.txt', 'content')
+      write('src/file.txt', 'content')
 
       # Test with concurrent = false (default)
       copy_task_sequential = CopyTask.new(:copy_sequential) do |t|
