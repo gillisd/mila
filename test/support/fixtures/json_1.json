@@ -1,0 +1,92 @@
+{
+  "person": {
+    "name": "John Doe",
+    "age": 32,
+    "contact": {
+      "email": "john.doe@example.com",
+      "phone": {
+        "home": "555-1234",
+        "mobile": "555-5678"
+      },
+      "address": {
+        "street": {
+          "number": 123,
+          "name": "Main St"
+        },
+        "city": "Anytown",
+        "state": "CA",
+        "zipcode": "12345",
+        "coordinates": {
+          "latitude": 37.7749,
+          "longitude": -122.4194
+        }
+      }
+    },
+    "employment": {
+      "company": {
+        "name": "Tech Solutions Inc.",
+        "department": {
+          "name": "Engineering",
+          "floor": 4,
+          "team": {
+            "name": "Backend",
+            "projects": [
+              {
+                "id": "proj-001",
+                "name": "Database Migration",
+                "status": "in-progress",
+                "milestones": [
+                  {
+                    "phase": 1,
+                    "completed": true,
+                    "reviewers": [
+                      "alice",
+                      "bob"
+                    ]
+                  },
+                  {
+                    "phase": 2,
+                    "completed": false,
+                    "tasks": [
+                      {
+                        "id": "task-2a",
+                        "description": "Schema validation",
+                        "priority": "high"
+                      },
+                      {
+                        "id": "task-2b",
+                        "description": "Performance testing",
+                        "priority": "medium"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "yearsOfService": 5,
+      "benefits": {
+        "health": true,
+        "retirement": {
+          "plan": "401k",
+          "contributionPercentage": 8
+        },
+        "vacation": {
+          "days": 21,
+          "accrued": 14.5
+        }
+      }
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "lastUpdated": "2025-03-01T12:00:00Z",
+    "tags": [
+      "test",
+      "nested",
+      "json"
+    ]
+  }
+}

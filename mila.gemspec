@@ -13,15 +13,17 @@ Gem::Specification.new do |spec|
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 2.7.5'
 
-  spec.metadata['allowed_push_host'] = 'https://rubygems.org'
+  spec.metadata['allowed_push_host'] = 'https://gemsluice.flipmine.com/private'
 
   spec.metadata['homepage_uri'] = spec.homepage
   spec.metadata['source_code_uri'] = spec.homepage
   spec.metadata['changelog_uri'] = spec.homepage
 
-  spec.files = Dir['{lib}/**/*']
-
-  spec.require_paths = ['lib']
+  spec.files = Dir[
+    '{exe}/**/*',
+    '{lib}/**/*',
+    '{multi_json}/**/*'
+  ]
 
   #
   #  # Specify which files should be added to the gem when it is released.
@@ -33,14 +35,16 @@ Gem::Specification.new do |spec|
   #        f.start_with?(*%w[bin/ test/ spec/ features/ .git appveyor Gemfile])
   #    end
   #  end
-  #  spec.bindir = 'exe'
-  #  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
+  spec.bindir = 'exe'
+  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
   spec.add_dependency 'benchmark-ips'
   spec.add_dependency 'zeitwerk'
-
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
+  spec.add_dependency "execjs", "~> 2.10"
+  spec.add_dependency "mini_racer"
+#  spec.add_dependency "mini_racer", "~> 0.6.4"
+#  spec.add_dependency "multi_json", "~> 1.15"
+#  spec.add_dependency "oj", "~> 3.16"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

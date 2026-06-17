@@ -1,11 +1,49 @@
 require 'test_helper'
-require 'minitest/autorun'
 
 module Mila
   module Benchmark
     class BenchmarkTest < Minitest::Test
+      include Support::Fixtures
+
       def test_json_parse
         assert true
+      end
+
+      def test_another_json
+        json = load_fixture('json_1.json', format: :string)
+        tests = lambda do |x|
+          mila_json = Mila::JSON::Parser.new(:multi_json)
+          mila_default = Mila::JSON::Parser.new(:default)
+          x.report('json') do
+            ::JSON.parse(json, symbolize_names: true)
+          end
+
+          x.report 'mila default' do
+            mila_default.parse(json)
+          end
+
+          x.report('mila simple json') do
+            Mila::JSON.parse(json)
+          end
+
+          x.report('mila json') do
+            mila_json.parse(json)
+          end
+
+          x.report('multijson') do
+            MultiJson.load(json, symbolize_keys: true)
+          end
+
+          x.report('oj') do
+            Oj.load(json, symbol_keys: true)
+          end
+        end
+
+        Benchmark.ips(name: 'standard', &tests)
+
+        RubyVM::YJIT.enable
+
+        Benchmark.ips(name: 'yjit', &tests)
       end
 
       def test_id
@@ -42,7 +80,7 @@ module Mila
         ips(3) do |x|
           x.report('stock') do
             JSON.parse(string, symbolize_names: true)
-              .dig(:id)
+                .dig(:id)
           end
           session = create_session
 

@@ -5,7 +5,13 @@ source "https://rubygems.org"
 # Specify your gem's dependencies in mila.gemspec
 gemspec
 
-gem "irb"
-gem "rake", "~> 13.0"
+group :development, :test do
+  gem "irb"
+  gem 'rake'
+  # gem "rake", "~> 13.0"
+end
 
-gem "minitest", "~> 5.16"
+group :test do
+  gem "minitest", "~> 5.16"
+end
+gem "json", "~> 2.10"

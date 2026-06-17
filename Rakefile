@@ -1,8 +1,89 @@
 # frozen_string_literal: true
 
-require "bundler/gem_tasks"
+require 'tempfile'
+require 'pathname'
+require_relative 'lib/mila/version'
+require_relative 'lib/mila/refinements/string'
 require "minitest/test_task"
+require "bundler/gem_tasks"
+
+using Mila::Refinements::String
 
 Minitest::TestTask.create
+
+root_path = __dir__.to_pathname
+lib_path = root_path.join('lib')
+project_path = lib_path.join('mila')
+
+namespace :version do
+  version_path = project_path.join('version.rb')
+  file version_path
+
+  desc "Bump the current version by smallest increment"
+  task :bump => [version_path] do
+    gem_exists_command = "gem info -i --version '#{Mila::VERSION}' mila | xargs test true =="
+    puts gem_exists_command
+
+    gem_exists = system gem_exists_command
+    puts "Gem exists? #{gem_exists}"
+
+    fail 'You may be bumping a version that does not yet exist - perhaps you need to reset or revert?' unless gem_exists
+
+    version_path.open(File::RDWR | File::CREAT, 0644) do |f|
+      f.flock(File::LOCK_EX)
+      current_version = Mila::VERSION
+      source = f.read
+
+      begin
+        next_version = current_version.increment_version
+        new_source = source.gsub(current_version, next_version)
+
+        if new_source == source
+          puts "Warning: No version string was replaced in #{version_path}"
+        else
+          f.rewind
+          f.write(new_source)
+          f.truncate(f.pos)
+          puts "Version bumped from #{current_version} to #{next_version}"
+        end
+      rescue => e
+        f.rewind
+        f.write(source)
+        raise e
+      end
+    end
+  end
+
+  desc 'Displays the current version'
+  task :current do
+    puts "Current version: #{Mila::VERSION}"
+  end
+
+  desc "Undo the last version bump commit"
+  task :revert do
+    # Check if the last commit was a version bump
+    last_commit_message = `git log -1 --pretty=%B`.strip
+    if last_commit_message.start_with?('Bumped version to ')
+      puts "Reverting last version bump commit..."
+      sh "git revert HEAD --no-edit"
+      puts "Version reverted successfully"
+    else
+      puts "Last commit doesn't appear to be a version bump. Aborting."
+    end
+  end
+
+  desc "Commit the current version change"
+  task :commit => [version_path] do
+    load version_path
+    sh "git add #{version_path}"
+    sh "git commit -m 'Bumped version to #{Mila::VERSION}'"
+    puts "Change to version.rb committed successfully!"
+  end
+end
+
+namespace :release do
+  desc 'Bumps version, commits it, and then releases gem'
+  task :full => ['version:bump', 'version:commit', :release]
+end
 
 task default: :test
